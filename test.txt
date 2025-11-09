@@ -1,0 +1,12 @@
+# PUT - додати картинку у кеш
+curl -i -X PUT --data-binary @C:/Users/Arsen/Downloads/liu-dakai-20211101.jpg http://localhost:3000/200
+# GET - отримати картинку з кешу
+curl -i http://localhost:3000/200 --output output.jpg
+# GET - спробувати отримати неіснуючу картинку
+curl -i http://localhost:3000/999
+# DELETE - видалити картинку з кешу
+curl -i -X DELETE http://localhost:3000/200
+# DELETE - спробувати видалити неіснуючу картинку
+curl -i -X DELETE http://localhost:3000/999
+# POST - метод, який не підтримується
+curl -i -X POST http://localhost:3000/200
