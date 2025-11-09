@@ -5,7 +5,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import superagent from 'superagent';
 
-// ---- Command-line arguments ----
+// --- Commander: аргументи командного рядка ---
 const program = new Command();
 program
   .requiredOption('-h, --host <host>', 'Server host')
@@ -16,32 +16,31 @@ program.parse(process.argv);
 const options = program.opts();
 const cacheDir = options.cache;
 
-// ---- Ensure cache directory exists ----
+// --- Створити кеш директорію, якщо не існує ---
 if (!existsSync(cacheDir)) {
   await fs.mkdir(cacheDir, { recursive: true });
   console.log(`Cache directory created at ${cacheDir}`);
 }
 
-// ---- HTTP Server ----
+// --- HTTP сервер ---
 const server = http.createServer(async (req, res) => {
-  const code = req.url.slice(1); // remove leading '/'
+  const code = req.url.slice(1); // наприклад "200"
   const filePath = path.join(cacheDir, `${code}.jpg`);
 
   try {
     if (req.method === 'GET') {
+      // --- GET: спочатку з кешу ---
       try {
-        // Try reading from cache
         const data = await fs.readFile(filePath);
         res.writeHead(200, { 'Content-Type': 'image/jpeg' });
         return res.end(data);
       } catch {
-        // If not in cache, fetch from http.cat
+        // --- Якщо в кеші немає, пробуємо завантажити з http.cat ---
         try {
           const response = await superagent
             .get(`https://http.cat/${code}`)
             .buffer(true)
             .parse(superagent.parse.image);
-
           const img = response.body;
           await fs.writeFile(filePath, img);
           res.writeHead(200, { 'Content-Type': 'image/jpeg' });
@@ -51,39 +50,31 @@ const server = http.createServer(async (req, res) => {
           return res.end('Not Found');
         }
       }
-    }
-
+    } 
     else if (req.method === 'PUT') {
+      // --- PUT: записати картинку в кеш ---
       const chunks = [];
-      req.on('data', chunk => chunks.push(chunk));
-      req.on('end', async () => {
-        const body = Buffer.concat(chunks);
-        await fs.writeFile(filePath, body);
-        res.writeHead(201);
-        res.end('Created');
-      });
-      req.on('error', () => {
-        res.writeHead(500);
-        res.end('Internal Server Error');
-      });
-    }
-
+      for await (const chunk of req) chunks.push(chunk);
+      const body = Buffer.concat(chunks);
+      await fs.writeFile(filePath, body);
+      res.writeHead(201);
+      return res.end('Created');
+    } 
     else if (req.method === 'DELETE') {
+      // --- DELETE: видалити картинку з кешу ---
       try {
         await fs.unlink(filePath);
         res.writeHead(200);
-        res.end('Deleted');
+        return res.end('Deleted');
       } catch {
         res.writeHead(404);
-        res.end('Not Found');
+        return res.end('Not Found');
       }
-    }
-
+    } 
     else {
       res.writeHead(405);
-      res.end('Method Not Allowed');
+      return res.end('Method Not Allowed');
     }
-
   } catch (err) {
     console.error(err);
     res.writeHead(500);
@@ -91,7 +82,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// ---- Start server ----
+// --- Запуск сервера ---
 server.listen(options.port, options.host, () => {
   console.log(`Server running at http://${options.host}:${options.port}`);
 });
